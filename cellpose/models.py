@@ -339,7 +339,9 @@ class CellposeModel():
         
         masks, dP, cellprob = masks.squeeze(), dP.squeeze(), cellprob.squeeze()
 
-        return masks, [plot.dx_to_circ(dP), dP, cellprob], styles
+        # Lazy flow visualization — dx_to_circ is expensive for 3D and rarely needed
+        flows = [None, dP, cellprob]  # flows[0] computed on demand via plot.dx_to_circ(dP)
+        return masks, flows, styles
     
 
     def _run_net(self, x, 

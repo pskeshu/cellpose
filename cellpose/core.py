@@ -137,8 +137,8 @@ def _from_device(X):
     Returns:
         numpy.ndarray: The converted NumPy array.
     """
-    # The cast is so numpy conversion always works
-    x = X.detach().cpu().to(torch.float32).numpy()
+    # Cast to float32 on device first (cheaper than CPU cast), then transfer
+    x = X.detach().to(torch.float32).cpu().numpy()
     return x
 
 
