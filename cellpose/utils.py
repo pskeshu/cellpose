@@ -652,13 +652,37 @@ def fill_holes_and_remove_small_masks(masks, min_size=15):
         fastremap.renumber(masks, in_place=True)
 
     slices = find_objects(masks)
-    j = 0
-    for i, slc in enumerate(slices):
-        if slc is not None:
-            msk = masks[slc] == (i + 1)
-            msk = fill_voids.fill(msk)
-            masks[slc][msk] = (j + 1)
-            j += 1
+
+    # Parallel hole filling using concurrent.futures (thread-safe for fill_voids)
+    from concurrent.futures import ThreadPoolExecutor
+    import os
+    n_valid = sum(1 for s in slices if s is not None)
+    n_workers = min(os.cpu_count() or 1, max(1, n_valid), 16)
+
+    def _fill_one(args):
+        idx, slc = args
+        if slc is None:
+            return None
+        msk = masks[slc] == (idx + 1)
+        return fill_voids.fill(msk)
+
+    if n_valid > 10 and n_workers > 1:
+        work = [(i, slc) for i, slc in enumerate(slices)]
+        with ThreadPoolExecutor(max_workers=n_workers) as pool:
+            results = list(pool.map(_fill_one, work))
+        j = 0
+        for i, (slc, filled) in enumerate(zip(slices, results)):
+            if slc is not None and filled is not None:
+                masks[slc][filled] = (j + 1)
+                j += 1
+    else:
+        j = 0
+        for i, slc in enumerate(slices):
+            if slc is not None:
+                msk = masks[slc] == (i + 1)
+                msk = fill_voids.fill(msk)
+                masks[slc][msk] = (j + 1)
+                j += 1
 
     if min_size > 0:
         uniq, counts = fastremap.unique(masks, return_counts=True)
